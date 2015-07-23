@@ -11,7 +11,7 @@ compute () {
       continue
     fi
     "$op" "$1" "$2"
-    printf "%6s %s %6s = %25s (bc: %25s)\n" "$1" "${ops[$op]}" "$2" "$REPLY" "$(bc -l <<< "$1 ${ops[$op]} $2" )"
+    printf "%6s %s %6s = %25.25s (bc: %25.25s)\n" "$1" "${ops[$op]}" "$2" "$REPLY" "$(bc -l <<< "$1 ${ops[$op]} $2" )"
   done
   echo ---------------------------------------------------------------------------
 }
@@ -21,6 +21,8 @@ for a in -12.34 -10 -1 0 1 10 12.34; do
   done
 done
 
-while read -ep 'Enter two numbers: ' -i "$RANDOM.$RANDOM $RANDOM.$RANDOM" a b; do
+while read -ep "Enter two numbers: " -i "$RANDOM.$RANDOM $RANDOM.$RANDOM" a b; do
+  clean "$a" && a=$REPLY || { echo "error with $a"; continue; }
+  clean "$b" && b=$REPLY || { echo "error with $b"; continue; }
   compute "$a" "$b"
 done

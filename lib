@@ -177,7 +177,13 @@ _exp () {
 exp () {
   local base=${1#-} sign1=${1%%[!-]*} exp=${2#-} sign2=${2%%[!-]*} tmp
 
-  if [[ $sign2 ]]; then div 1 "$base"; _exp "$REPLY" "$exp"
+  if [[ $exp = 0 ]]; then REPLY=1; return
+  elif [[ $base = 0 ]]; then
+    if [[ $exp = -* ]]; then REPLY=NaN
+    else REPLY=0
+    fi
+    return
+  elif [[ $sign2 ]]; then div 1 "$base"; _exp "$REPLY" "$exp"
   else _exp "$base" "$2"
   fi
   [[ $exp = *[13579] && $sign1 ]] && REPLY=-$REPLY
@@ -186,8 +192,10 @@ exp () {
 }
 
 clean () {
-  local num=${1#-} sign=${1%%[!-]*} 
-  if [[ $num =~ (.*)\.(.*) ]]; then
+  local num=${1#[+-]} sign=${1%%[!+-]*}
+  if [[ $num = *[!0-9.]* ]]; then
+    REPLY=NaN; return 1
+  elif [[ $num =~ (.*)\.(.*) ]]; then
     if [[ $num = *.*[!0]* ]]; then
       [[ $num =~ (.*)\.(.*[^0]) ]]
       REPLY=${BASH_REMATCH[1]##+(0)}.${BASH_REMATCH[2]}
@@ -198,7 +206,7 @@ clean () {
   else
     REPLY=${num##+(0)} REPLY=${REPLY:-0}
   fi
-  REPLY=$sign$REPLY
+  if [[ $sign = - ]]; then REPLY=-$REPLY; fi
 }
 
 #sub () { _sub "$@"; clean "$REPLY"; }
