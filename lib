@@ -1,0 +1,210 @@
+#!/bin/bash
+
+# notes:
+# - clean turns a number into a nicer form: 000000.123450000 -> 0.12345
+# - add, sub, mul, div and exp only work with nice numbers
+# - div's precision is limited by $PRECISION, unless it's by a multiple of 10
+# - exp only takes an integer exponent
+#   - if the exponent is negative it uses div so its precision is limited
+# - the functions optimize a few cases when possible
+# - functions that start with _ are for internal use only
+# - functions that start with __ only take positive integers
+# todo:
+# - write sub and div
+# - scientific notation
+# - exp that takes a non integer exponent
+# - sin log moar
+
+shopt -s extglob
+LANG=C
+
+_move_separator_left () {
+  # $2 > 0
+  printf -v REPLY "%0*d" "$2"
+  REPLY+=${1/.}
+  if [[ $1 =~ (.*)\.(.*) ]]; then
+    REPLY=${REPLY:0:${#BASH_REMATCH[1]}}.${REPLY:${#BASH_REMATCH[1]}}
+  elif (( $2 )); then
+    REPLY=${REPLY:0:${#1}}.${REPLY:${#1}}
+  fi
+}
+
+_move_separator_right () {
+  # $2 > 0
+  if [[ $1 =~ (.*)\.(.*) ]]; then
+    printf -v REPLY "%s%0*d" "${1/.}" "$2"
+    REPLY=${REPLY:0:${#BASH_REMATCH[1]}+$2}.${REPLY:${#BASH_REMATCH[1]}+$2}
+  else
+    printf -v REPLY "%s%0*d" "$1" "$2"
+  fi
+}
+
+__mul () {
+  # $1 and $2 are positive integers
+  local i j tmp result carry
+  REPLY=0
+  for (( i = ${#1} - 1; i >= 0 ; i-- )); do
+    printf -v result "%*s" "$(( ${#1} - i - 1 ))"
+    result=${result// /0} carry=0
+    for (( j = ${#2} - 1; j >= 0 ; j-- )); do
+      (( tmp = ${1:i:1} * ${2:j:1} + carry , carry = tmp / 10 , tmp %= 10 ))
+      result=$tmp$result
+    done
+    result=$carry$result
+    __add "$REPLY" "$result"
+  done
+  # mini cleanup that can greatly speed up exp
+  REPLY=${REPLY##+(0)} REPLY=${REPLY:-0}
+  # doing it in __add doesn't help
+}
+
+_mul () {
+  local shift{1,2}
+  [[ $1 =~ \.(.+) ]] && shift1=${#BASH_REMATCH[1]}
+  [[ $2 =~ \.(.+) ]] && shift2=${#BASH_REMATCH[1]}
+  __mul "${1/.}" "${2/.}"
+  (( shift2 )) && _move_separator_left "$REPLY" "$shift2"
+  (( shift1 )) && _move_separator_left "$REPLY" "$shift1"
+}
+
+mul () {
+  local num1=${1#-} num2=${2#-} sign1=${1%%[!-]*} sign2=${2%%[!-]*}
+
+  if [[ $num1 = 0 || $num2 = 0 ]]; then REPLY=0; return
+  elif [[ $num1 = 1 ]]; then REPLY=$num2
+  elif [[ $num2 = 1 ]]; then REPLY=$num1
+  elif [[ $num1 =~ ^1(0+)$ ]]; then _move_separator_right "$num2" "${#BASH_REMATCH[1]}"
+  elif [[ $num2 =~ ^1(0+)$ ]]; then _move_separator_right "$num1" "${#BASH_REMATCH[1]}"
+  elif [[ $num1 =~ ^0.(0*1)$ ]]; then _move_separator_left "$num2" "${#BASH_REMATCH[1]}"
+  elif [[ $num2 =~ ^0.(0*1)$ ]]; then _move_separator_left "$num1" "${#BASH_REMATCH[1]}"
+  else _mul "$num1" "$num2"
+  fi
+
+  clean "$REPLY"
+
+  [[ $sign1$sign2 = - ]] && REPLY=-$REPLY
+}
+
+__add () {
+  # $1 and $2 are positive integers
+  local i tmp carry num{1,2} max=$(( ${#1} > ${#2} ? ${#1} : ${#2} ))
+  if (( ${#1} != ${#2} )); then
+    printf -v num1 "%*s" "$max" "$1"
+    printf -v num2 "%*s" "$max" "$2"
+    num1=${num1// /0} num2=${num2// /0}
+  else
+    num1=$1 num2=$2
+  fi
+
+  REPLY=
+
+  for (( i = max - 1; i >= 0 ; i-- )); do
+    (( tmp = ${num1:i:1} + ${num2:i:1} + carry , carry = tmp / 10 , tmp %= 10 ))
+    REPLY=$tmp$REPLY
+  done
+  REPLY=$carry$REPLY
+}
+
+_add () {
+  local {num,int,dec}{1,2} max{int,dec}
+  if [[ $1 =~ (.*)\.(.*) ]]; then
+    int1=${BASH_REMATCH[1]} dec1=${BASH_REMATCH[2]}
+  else
+    int1=$1 dec1=
+  fi
+  if [[ $2 =~ (.*)\.(.*) ]]; then
+    int2=${BASH_REMATCH[1]} dec2=${BASH_REMATCH[2]}
+  else
+    int2=$2 dec2=
+  fi
+  maxint=$(( ${#int1} > ${#int2} ? ${#int1} : ${#int2} ))
+  maxdec=$(( ${#dec1} > ${#dec2} ? ${#dec1} : ${#dec2} ))
+
+  printf -v num1 "%*s%-*s" "$maxint" "$int1" "$maxdec" "$dec1"
+  printf -v num2 "%*s%-*s" "$maxint" "$int2" "$maxdec" "$dec2"
+  __add "${num1// /0}" "${num2// /0}"
+  _move_separator_left "$REPLY" "$maxdec"
+}
+
+add () {
+  local num1=${1#-} num2=${2#-} sign1=${1%%[!-]*} sign2=${2%%[!-]*}
+  if [[ $sign1 && -z $sign2 ]]; then _sub "$num2" "$num1"; clean "$REPLY"; return
+  elif [[ -z $sign1 && $sign2 ]]; then _sub "$num1" "$num2"; clean "$REPLY"; return
+  fi
+
+  if [[ $num1 = 0 && $num2 = 0 ]]; then REPLY=0
+  elif [[ $num1 = 0 ]]; then REPLY=$2
+  elif [[ $num2 = 0 ]]; then REPLY=$1
+  else _add "$num1" "$num2"; clean "$sign1$REPLY"
+  fi
+}
+
+sub () {
+  local num1=${1#-} num2=${2#-} sign1=${1%%[!-]*} sign2=${2%%[!-]*}
+  if [[ $sign1 && -z $sign2 ]]; then _add "$num2" "$num1"; clean "-$REPLY"; return
+  elif [[ -z $sign1 && $sign2 ]]; then _add "$num1" "$num2"; clean "$REPLY"; return
+  fi
+
+  if [[ $num1 = 0 && $num2 = 0 ]]; then REPLY=0
+  elif [[ $num1 = "$num2" ]]; then REPLY=0
+  elif [[ $num1 = 0 ]]; then [[ $sign2 ]] && REPLY=$num2 || REPLY=-$2
+  elif [[ $num2 = 0 ]]; then [[ $sign1 ]] && REPLY=$num1 || REPLY=-$1
+  else _sub "$num1" "$num2"
+    clean "$REPLY"
+    [[ $sign1 ]] && REPLY=${REPLY#-}
+  fi
+}
+
+
+_exp () {
+  # exp by squaring
+  if [[ $2 = 0 ]]; then REPLY=1
+  elif [[ $2 = 1 ]]; then REPLY=$1
+  elif [[ $2 = *[02468] ]]; then
+    _mul "$1" "$1"; tmp=$REPLY
+    __div "$2" 2
+    clean "$REPLY" # tmp
+    _exp "$tmp" "$REPLY"
+  else
+    _mul "$1" "$1"; tmp=$REPLY
+    __sub "$2" 1; __div "$REPLY" 2
+    clean "$REPLY" # tmp
+    _exp "$tmp" "$REPLY"
+    _mul "$1" "$REPLY"
+  fi
+}
+
+exp () {
+  local base=${1#-} sign1=${1%%[!-]*} exp=${2#-} sign2=${2%%[!-]*} tmp
+
+  if [[ $sign2 ]]; then div 1 "$base"; _exp "$REPLY" "$exp"
+  else _exp "$base" "$2"
+  fi
+  [[ $exp = *[13579] && $sign1 ]] && REPLY=-$REPLY
+
+  clean "$REPLY"
+}
+
+clean () {
+  local num=${1#-} sign=${1%%[!-]*} 
+  if [[ $num =~ (.*)\.(.*) ]]; then
+    if [[ $num = *.*[!0]* ]]; then
+      [[ $num =~ (.*)\.(.*[^0]) ]]
+      REPLY=${BASH_REMATCH[1]##+(0)}.${BASH_REMATCH[2]}
+    else
+      REPLY=${BASH_REMATCH[1]##+(0)}
+    fi
+    [[ $REPLY = .* ]] && REPLY=0$REPLY
+  else
+    REPLY=${num##+(0)} REPLY=${REPLY:-0}
+  fi
+  REPLY=$sign$REPLY
+}
+
+#sub () { _sub "$@"; clean "$REPLY"; }
+_sub () { __sub "$@"; }
+__sub () { REPLY=$(bc -l <<< "$1 - $2"); }
+
+div () { _div "$@"; clean "$REPLY"; }
+_div () { __div "$@"; }
+__div () { REPLY=$(bc -l <<< "$1 / $2"); }

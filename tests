@@ -1,0 +1,26 @@
+#!/bin/bash
+source ./lib
+declare -A ops=([add]=+ [sub]=- [mul]=* [div]=/ [exp]=^)
+compute () {
+  for op in add sub mul div exp; do
+    if ! [[ $op != exp || $2 != *.* ]]; then
+      echo "skip exp"
+      continue
+    elif ! [[ $op != div || $2 != 0 ]]; then
+      echo "skip div"
+      continue
+    fi
+    "$op" "$1" "$2"
+    printf "%6s %s %6s = %25s (bc: %25s)\n" "$1" "${ops[$op]}" "$2" "$REPLY" "$(bc -l <<< "$1 ${ops[$op]} $2" )"
+  done
+  echo ---------------------------------------------------------------------------
+}
+for a in -12.34 -10 -1 0 1 10 12.34; do
+  for b in -12.34 -10 -1 0 1 10 12.34; do
+    compute "$a" "$b"
+  done
+done
+
+while read -ep 'Enter two numbers: ' -i "$RANDOM.$RANDOM $RANDOM.$RANDOM" a b; do
+  compute "$a" "$b"
+done

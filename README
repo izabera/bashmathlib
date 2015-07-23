@@ -1,0 +1,9 @@
+arbitrary precision floating point math library
+
+implemented:
+- add
+- sub
+- mul
+- div
+- exp
+run the tests
