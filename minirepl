@@ -20,18 +20,22 @@ math () {
 parse () {
   line=$1
   while :; do
-    if [[ $line =~ $num" "+(\^)" "+$num(.*) ]]; then
+    if [[ $line =~ $num" "*(\^)" "*$num(.*) ]]; then
       matches=("${BASH_REMATCH[@]}")
       math "${BASH_REMATCH[3]}" "${BASH_REMATCH[1]}" "${BASH_REMATCH[4]}"
-    elif [[ $line =~ $num" "+([*/])" "+$num(.*) ]]; then
+    elif [[ $line =~ $num" "*([*/])" "*$num(.*) ]]; then
       matches=("${BASH_REMATCH[@]}")
       math "${BASH_REMATCH[3]}" "${BASH_REMATCH[1]}" "${BASH_REMATCH[4]}"
-    elif [[ $line =~ $num" "+([+-])" "+$num(.*) ]]; then
+    elif [[ $line =~ $num" "*([+-])" "*$num(.*) ]]; then
       matches=("${BASH_REMATCH[@]}")
       math "${BASH_REMATCH[3]}" "${BASH_REMATCH[1]}" "${BASH_REMATCH[4]}"
     elif [[ $line =~ ^" "*$num" "*$ ]]; then
       matches=
       read REPLY <<< "$line"
+      break
+    elif [[ $line =~ -" "*$num(.*) ]]; then # negative num
+      matches=("${BASH_REMATCH[@]}")
+      math - 0 "${BASH_REMATCH[1]}"
     else break
     fi
     line="${line%%"${matches[0]}"} $REPLY ${matches[6]}"
