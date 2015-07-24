@@ -1,0 +1,57 @@
+#!/bin/bash
+# just a sample repl
+# parse space separated tokens
+# no real error checking is performed on the input
+
+source ./lib
+
+num='(-?[0-9]+(\.[0-9]+)?)'
+
+math () {
+  case $1 in
+    ^) exp "$2" "$3" ;;
+    +) add "$2" "$3" ;;
+    -) sub "$2" "$3" ;;
+    /) div "$2" "$3" ;;
+    *) mul "$2" "$3" ;;
+  esac
+}
+
+parse () {
+  line=$1
+  while :; do
+    if [[ $line =~ $num" "+(\^)" "+$num(.*) ]]; then
+      matches=("${BASH_REMATCH[@]}")
+      math "${BASH_REMATCH[3]}" "${BASH_REMATCH[1]}" "${BASH_REMATCH[4]}"
+    elif [[ $line =~ $num" "+([*/])" "+$num(.*) ]]; then
+      matches=("${BASH_REMATCH[@]}")
+      math "${BASH_REMATCH[3]}" "${BASH_REMATCH[1]}" "${BASH_REMATCH[4]}"
+    elif [[ $line =~ $num" "+([+-])" "+$num(.*) ]]; then
+      matches=("${BASH_REMATCH[@]}")
+      math "${BASH_REMATCH[3]}" "${BASH_REMATCH[1]}" "${BASH_REMATCH[4]}"
+    elif [[ $line =~ ^" "*$num" "*$ ]]; then
+      matches=
+      read REPLY <<< "$line"
+    else break
+    fi
+    line="${line%%"${matches[0]}"} $REPLY ${matches[6]}"
+    read -a array <<< "$line"
+    line=${array[*]}
+  done
+  REPLY=" $REPLY "
+}
+
+while read -rep "> " line; do
+  [[ $line ]] || continue
+  history -s -- "$line"
+  line="($line)"
+  while [[ $line =~ (.*)\(([^")"]*)\)(.*) ]]; do
+    REPLY=
+    before=${BASH_REMATCH[1]} middle=${BASH_REMATCH[2]} after=${BASH_REMATCH[3]}
+    parse "$middle"
+    line=$before$REPLY$after
+  done
+  read line <<< "$line"
+  clean "$line"
+  echo "$REPLY"
+done
