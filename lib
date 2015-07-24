@@ -10,7 +10,7 @@
 # - functions that start with _ are for internal use only
 # - functions that start with __ only take positive integers
 # todo:
-# - write sub and div
+# - write div
 # - scientific notation
 # - exp that takes a non integer exponent
 # - sin log moar
@@ -244,10 +244,10 @@ __sub () {
   # subtraction of two positive integers that have been zero-padded
   # and now have same length
 
-  local i j len=${#1}
+  local i len=${#1}
   REPLY=
   for (( i = 0; i < len; i++ )); do
-    REPLY+=$((9 - ${2:i:1}))
+    REPLY+=$((9 - ${2:i:1})) # 10 complement
   done
   if [[ $1 = *[0-8] ]]; then
     __add "${1::(-1)}$((${1:(-1)}+1))" "$REPLY"
@@ -260,6 +260,28 @@ __sub () {
   REPLY=$((${REPLY:0:1} - 1))${REPLY:1}
 }
 
-div () { _div "$@"; clean "$REPLY"; }
-_div () { __div "$@"; }
-__div () { REPLY=$(bc -l <<< "$1 / $2"); }
+div () {
+  local num1=${1#-} num2=${2#-} sign1=${1%%[!-]*} sign2=${2%%[!-]*}
+
+  [[ $sign1 && $sign2 ]] && sign1= sign2=
+
+  if [[ $num1 = "$num2" ]]; then REPLY=1
+  elif [[ $num1 = 0 ]]; then REPLY=0; return
+  elif [[ $num2 = 0 ]]; then REPLY=NaN; return
+  elif [[ $num2 = 1 ]]; then REPLY=$num1
+  elif [[ $num2 =~ ^1(0+)$ ]]; then _move_separator_left "$num1" "${#BASH_REMATCH[1]}"
+  elif [[ $num2 =~ ^0.(0*1)$ ]]; then _move_separator_right "$num1" "${#BASH_REMATCH[1]}"
+  else _div "$num1" "$num2"
+  fi
+  clean "$REPLY"
+  REPLY=$sign1$sign2$REPLY
+}
+
+_div () {
+  __div "$@"
+}
+
+__div () {
+  # $1 > $2 and they're integers
+  REPLY=$(bc -l <<< "$1 / $2")
+}

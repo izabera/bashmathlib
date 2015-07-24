@@ -1,0 +1,8 @@
+#!/bin/bash
+source ./lib
+fib () {
+  echo "$1"
+  add "$1" "$2"
+  fib "$2" "$REPLY"
+}
+fib 1 1

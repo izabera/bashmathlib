@@ -1,0 +1,4 @@
+#!/bin/bash
+source ./lib
+exp 2 1000
+echo "2 ^ 1000 = $REPLY"

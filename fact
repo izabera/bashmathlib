@@ -1,0 +1,19 @@
+#!/bin/bash
+source ./lib
+fact () {
+  if [[ $1 = 0 ]]; then
+    REPLY=1
+  else
+    sub "$1" 1
+    fact "$REPLY"
+    mul "$REPLY" "$1"
+  fi
+}
+
+fact=1 i=0
+while ((++i)); do
+  add "$i" 1
+  mul "$i" "$fact"
+  fact=$REPLY
+  echo "$i! = $fact"
+done
