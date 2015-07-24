@@ -98,13 +98,32 @@ __add () {
     num1=$1 num2=$2
   fi
 
-  REPLY=
+  if (( max < 19 )); then REPLY=$(( 10#$1 + 10#$2 ))
+  else
+    REPLY=
 
-  for (( i = max - 1; i >= 0 ; i-- )); do
-    (( tmp = ${num1:i:1} + ${num2:i:1} + carry , carry = tmp / 10 , tmp %= 10 ))
-    REPLY=$tmp$REPLY
-  done
-  REPLY=$carry$REPLY
+    # adding 18 digits at a time...  it's slower than a digit at a time??
+    #for (( i = max - 18; i >= 0 ; i -= 18 )); do
+      #(( tmp = 10#${num1:i:18} + 10#${num2:i:18} + carry ,
+         #carry = tmp / 1000000000000000000 ,
+         #tmp %= 1000000000000000000 ))
+      ##printf -v REPLY %018d%s "$tmp" "$REPLY"
+      #tmp=000000000000000000$tmp tmp=${tmp:(-18)}
+      #REPLY=$tmp$REPLY
+    #done
+    #(( tmp = 10#${num1::i+18} + 10#${num2::i+18} + carry ,
+       #carry = tmp / 1000000000000000000 ,
+       #tmp %= 1000000000000000000 ))
+    ##printf -v REPLY %s%018d%s "$carry" "$tmp" "$REPLY"
+    #tmp=000000000000000000$tmp tmp=${tmp:(-18)}
+    #REPLY=$carry$tmp$REPLY
+
+    for (( i = max - 1; i >= 0 ; i-- )); do
+      (( tmp = ${num1:i:1} + ${num2:i:1} + carry , carry = tmp / 10 , tmp %= 10 ))
+      REPLY=$tmp$REPLY
+    done
+    REPLY=$carry$REPLY
+  fi
 }
 
 _add () {
@@ -159,19 +178,19 @@ sub () {
   fi
 }
 
-
 _exp () {
   # exp by squaring
   if [[ $2 = 0 ]]; then REPLY=1
   elif [[ $2 = 1 ]]; then REPLY=$1
   elif [[ $2 = *[02468] ]]; then
     _mul "$1" "$1"; tmp=$REPLY
-    mul "$2" 0.5
-    _exp "$tmp" "$REPLY"
+    _mul "$2" 5        # times 5 and remove last digit
+    _exp "$tmp" "${REPLY::(-1)}"
+
   else
     _mul "$1" "$1"; tmp=$REPLY
-    mul "${2::(-1)}$((${2:(-1)}-1))" 0.5
-    _exp "$tmp" "$REPLY"
+    _mul "${2::(-1)}$((${2:(-1)}-1))" 5
+    _exp "$tmp" "${REPLY::(-1)}"
     _mul "$1" "$REPLY"
   fi
 }
@@ -245,17 +264,18 @@ __sub () {
   # and now have same length
 
   local i len=${#1}
+  if (( len < 19 )); then REPLY=$(( 10#$1 - 10#$2 )); return; fi
   REPLY=
   for (( i = 0; i < len; i++ )); do
     REPLY+=$((9 - ${2:i:1})) # 10 complement
   done
-  if [[ $1 = *[0-8] ]]; then
-    __add "${1::(-1)}$((${1:(-1)}+1))" "$REPLY"
-  elif [[ $REPLY = *[0-8] ]]; then
-    __add "$1" "${REPLY::(-1)}$((${REPLY:(-1)}+1))"
+  if [[ $1 = *[0-8] ]]; then __add "${1::(-1)}$((${1:(-1)}+1))" "$REPLY"
+  elif [[ $REPLY = *[0-8] ]]; then __add "$1" "${REPLY::(-1)}$((${REPLY:(-1)}+1))"
   else
     __add "$1" "$REPLY"
-    __add "$REPLY" 1
+    if [[ $REPLY = [0-8] ]]; then REPLY=${REPLY::(-1)}$((${REPLY:(-1)}+1))
+    else __add "$REPLY" 1
+    fi
   fi
   REPLY=$((${REPLY:0:1} - 1))${REPLY:1}
 }
