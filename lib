@@ -20,6 +20,7 @@ LANG=C
 
 _move_separator_left () {
   # $2 > 0
+  (( $2 )) || return
   printf -v REPLY "%0*d" "$2"
   REPLY+=${1/.}
   if [[ $1 =~ (.*)\.(.*) ]]; then
@@ -31,6 +32,7 @@ _move_separator_left () {
 
 _move_separator_right () {
   # $2 > 0
+  (( $2 )) || return
   if [[ $1 =~ (.*)\.(.*) ]]; then
     printf -v REPLY "%s%0*d" "${1/.}" "$2"
     REPLY=${REPLY:0:${#BASH_REMATCH[1]}+$2}.${REPLY:${#BASH_REMATCH[1]}+$2}
@@ -151,7 +153,9 @@ sub () {
   elif [[ $num2 = 0 ]]; then [[ $sign1 ]] && REPLY=$num1 || REPLY=-$1
   else _sub "$num1" "$num2"
     clean "$REPLY"
-    [[ $sign1 ]] && REPLY=${REPLY#-}
+    if [[ $sign1 && ${REPLY:0:1} != - ]]; then
+      REPLY=-${REPLY#-}
+    fi
   fi
 }
 
@@ -162,13 +166,11 @@ _exp () {
   elif [[ $2 = 1 ]]; then REPLY=$1
   elif [[ $2 = *[02468] ]]; then
     _mul "$1" "$1"; tmp=$REPLY
-    __div "$2" 2
-    clean "$REPLY" # tmp
+    mul "$2" 0.5
     _exp "$tmp" "$REPLY"
   else
     _mul "$1" "$1"; tmp=$REPLY
-    __sub "$2" 1; __div "$REPLY" 2
-    clean "$REPLY" # tmp
+    mul "${2::(-1)}$((${2:(-1)}-1))" 0.5
     _exp "$tmp" "$REPLY"
     _mul "$1" "$REPLY"
   fi
@@ -177,12 +179,13 @@ _exp () {
 exp () {
   local base=${1#-} sign1=${1%%[!-]*} exp=${2#-} sign2=${2%%[!-]*} tmp
 
-  if [[ $exp = 0 ]]; then REPLY=1; return
+  if [[ $exp = *.* ]]; then REPLY=error; return 1
+  elif [[ $exp = 0 ]]; then REPLY=1; return
   elif [[ $base = 0 ]]; then
     if [[ $exp = -* ]]; then REPLY=NaN
     else REPLY=0
     fi
-    return
+    return 1
   elif [[ $sign2 ]]; then div 1 "$base"; _exp "$REPLY" "$exp"
   else _exp "$base" "$2"
   fi
@@ -209,9 +212,53 @@ clean () {
   if [[ $sign = - ]]; then REPLY=-$REPLY; fi
 }
 
-#sub () { _sub "$@"; clean "$REPLY"; }
-_sub () { __sub "$@"; }
-__sub () { REPLY=$(bc -l <<< "$1 - $2"); }
+_sub () {
+  # pass two integers to __sub, and $1 will be $2
+  local {num,int,dec}{1,2} max{int,dec}
+  if [[ $1 =~ (.*)\.(.*) ]]; then
+    int1=${BASH_REMATCH[1]} dec1=${BASH_REMATCH[2]}
+  else
+    int1=$1 dec1=
+  fi
+  if [[ $2 =~ (.*)\.(.*) ]]; then
+    int2=${BASH_REMATCH[1]} dec2=${BASH_REMATCH[2]}
+  else
+    int2=$2 dec2=
+  fi
+  maxint=$(( ${#int1} > ${#int2} ? ${#int1} : ${#int2} ))
+  maxdec=$(( ${#dec1} > ${#dec2} ? ${#dec1} : ${#dec2} ))
+
+  printf -v num1 "%*s%-*s" "$maxint" "$int1" "$maxdec" "$dec1"
+  printf -v num2 "%*s%-*s" "$maxint" "$int2" "$maxdec" "$dec2"
+  if [[ $num1 > "$num2" ]]; then
+    __sub "${num1// /0}" "${num2// /0}"
+    _move_separator_left "$REPLY" "$maxdec"
+  else
+    __sub "${num2// /0}" "${num1// /0}"
+    _move_separator_left "$REPLY" "$maxdec"
+    REPLY=-$REPLY
+  fi
+}
+
+__sub () {
+  # subtraction of two positive integers that have been zero-padded
+  # and now have same length
+
+  local i j len=${#1}
+  REPLY=
+  for (( i = 0; i < len; i++ )); do
+    REPLY+=$((9 - ${2:i:1}))
+  done
+  if [[ $1 = *[0-8] ]]; then
+    __add "${1::(-1)}$((${1:(-1)}+1))" "$REPLY"
+  elif [[ $REPLY = *[0-8] ]]; then
+    __add "$1" "${REPLY::(-1)}$((${REPLY:(-1)}+1))"
+  else
+    __add "$1" "$REPLY"
+    __add "$REPLY" 1
+  fi
+  REPLY=$((${REPLY:0:1} - 1))${REPLY:1}
+}
 
 div () { _div "$@"; clean "$REPLY"; }
 _div () { __div "$@"; }
