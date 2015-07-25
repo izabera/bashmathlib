@@ -2,7 +2,9 @@
 
 # notes:
 # - clean turns a number into a nicer form: 000000.123450000 -> 0.12345
+#   - formatnums does the opposite
 # - add, sub, mul, div and exp only work with nice numbers
+#   - tried several different methods to sum, see benchmark below
 # - div's precision is limited by $PRECISION, unless it's by a multiple of 10
 # - exp only takes an integer exponent
 #   - if the exponent is negative it uses div so its precision is limited
@@ -105,48 +107,87 @@ __add () {
   else
     REPLY=
 
-    # adding 18 digits at a time...  it's slower than a digit at a time??
-    #for (( i = max - 18; i >= 0 ; i -= 18 )); do
-      #(( tmp = 10#${num1:i:18} + 10#${num2:i:18} + carry ,
-         #carry = tmp / 1000000000000000000 ,
-         #tmp %= 1000000000000000000 ))
-      ##printf -v REPLY %018d%s "$tmp" "$REPLY"
-      #tmp=000000000000000000$tmp tmp=${tmp:(-18)}
-      #REPLY=$tmp$REPLY
-    #done
-    #(( tmp = 10#${num1::i+18} + 10#${num2::i+18} + carry ,
-       #carry = tmp / 1000000000000000000 ,
-       #tmp %= 1000000000000000000 ))
-    ##printf -v REPLY %s%018d%s "$carry" "$tmp" "$REPLY"
-    #tmp=000000000000000000$tmp tmp=${tmp:(-18)}
-    #REPLY=$carry$tmp$REPLY
+    # attempts to speed this up by adding more digits at a time utterly failed
+    # bash is _really_ slow with large sums for some reason
 
+    # method #1: iterate over strings 1 digit at a time
+    #--------------------------------------------
     for (( i = max - 1; i >= 0 ; i-- )); do
       (( tmp = ${num1:i:1} + ${num2:i:1} + carry , carry = tmp / 10 , tmp %= 10 ))
       REPLY=$tmp$REPLY
     done
     REPLY=$carry$REPLY
+    # 2^1000 takes less than 2s
+    #--------------------------------------------
+
+    # method #2: iterate over strings 18 digits at a time
+    #--------------------------------------------
+    #for (( i = max - 18; i >= 0 ; i -= 18 )); do
+    #  (( tmp = 10#${num1:i:18} + 10#${num2:i:18} + carry ,
+    #     carry = tmp / 1000000000000000000 ,
+    #     tmp %= 1000000000000000000 ))
+    #  #printf -v REPLY %018d%s "$tmp" "$REPLY"     ######## printf way
+    #  tmp=000000000000000000$tmp tmp=${tmp:(-18)}  ######## pe way
+    #  REPLY=$tmp$REPLY
+    #done
+    #(( tmp = 10#${num1::i+18} + 10#${num2::i+18} + carry ,
+    #   carry = tmp / 1000000000000000000 ,
+    #   tmp %= 1000000000000000000 ))
+    ##printf -v REPLY %s%018d%s "$carry" "$tmp" "$REPLY"
+    #tmp=000000000000000000$tmp tmp=${tmp:(-18)}
+    #REPLY=$carry$tmp$REPLY
+
+    # 2^1000 takes over 10s
+    # with 10 digits it takes only 5s
+    # with 2 digits it's pretty much as fast as 1 digit
+    #--------------------------------------------
+
+    # method #3: split strings to arrays, iterate over arrays
+    #--------------------------------------------
+    #local remainder=$(( max % 18 )) nums{1,2}
+    ## split strings to arrays
+    #eval eval '"nums1=(" \"\${num1:'{$((max-18))..0..18}':18}\" ")"'
+    #eval eval '"nums2=(" \"\${num2:'{$((max-18))..0..18}':18}\" ")"'
+    #blocks=${#nums1[@]}
+    #for (( i = 0; i < blocks; i++ )); do
+    #  (( tmp = 10#${nums1[i]} + 10#${nums2[i]} + carry ,
+    #     carry = tmp / 1000000000000000000 ,
+    #     tmp %= 1000000000000000000 ))
+    #  tmp=000000000000000000$tmp tmp=${tmp:(-18)}
+    #  REPLY=$tmp$REPLY
+    #done
+    #(( tmp = 10#${num1::remainder} + 10#${num2::remainder} + carry ,
+    #   carry = tmp / 1000000000000000000 ,
+    #   tmp %= 1000000000000000000 ))
+    #tmp=000000000000000000$tmp tmp=${tmp:(-18)}
+    #REPLY=$carry$tmp$REPLY
+
+    # 2^1000 takes again over 10s
+    # same performance as method #2
+    #--------------------------------------------
   fi
 }
 
-_add () {
-  local {num,int,dec}{1,2} max{int,dec}
-  if [[ $1 =~ (.*)\.(.*) ]]; then
-    int1=${BASH_REMATCH[1]} dec1=${BASH_REMATCH[2]}
-  else
-    int1=$1 dec1=
+formatnums () {
+  # set {num,int,dec}{1,2} in the parent
+  if [[ $1 =~ (.*)\.(.*) ]]; then int1=${BASH_REMATCH[1]} dec1=${BASH_REMATCH[2]}
+  else int1=$1 dec1=
   fi
-  if [[ $2 =~ (.*)\.(.*) ]]; then
-    int2=${BASH_REMATCH[1]} dec2=${BASH_REMATCH[2]}
-  else
-    int2=$2 dec2=
+  if [[ $2 =~ (.*)\.(.*) ]]; then int2=${BASH_REMATCH[1]} dec2=${BASH_REMATCH[2]}
+  else int2=$2 dec2=
   fi
   maxint=$(( ${#int1} > ${#int2} ? ${#int1} : ${#int2} ))
   maxdec=$(( ${#dec1} > ${#dec2} ? ${#dec1} : ${#dec2} ))
 
   printf -v num1 "%*s%-*s" "$maxint" "$int1" "$maxdec" "$dec1"
   printf -v num2 "%*s%-*s" "$maxint" "$int2" "$maxdec" "$dec2"
-  __add "${num1// /0}" "${num2// /0}"
+  num1=${num1// /0} num2=${num2// /0}
+}
+
+_add () {
+  local {num,int,dec}{1,2} max{int,dec}
+  formatnums "$1" "$2"
+  __add "$num1" "$num2"
   _move_separator_left "$REPLY" "$maxdec"
 }
 
@@ -186,12 +227,14 @@ _exp () {
   if [[ $2 = 0 ]]; then REPLY=1
   elif [[ $2 = 1 ]]; then REPLY=$1
   elif [[ $2 = *[02468] ]]; then
-    _mul "$1" "$1"; tmp=$REPLY
+  # mul instead of _mul is not much longer and helps a lot in simple cases
+  # with lots of digits
+    mul "$1" "$1"; tmp=$REPLY
     _mul "$2" 5        # times 5 and remove last digit
     _exp "$tmp" "${REPLY::(-1)}"
 
   else
-    _mul "$1" "$1"; tmp=$REPLY
+    mul "$1" "$1"; tmp=$REPLY
     _mul "${2::(-1)}$((${2:(-1)}-1))" 5
     _exp "$tmp" "${REPLY::(-1)}"
     _mul "$1" "$REPLY"
@@ -234,29 +277,56 @@ clean () {
   if [[ $sign = - ]]; then REPLY=-$REPLY; fi
 }
 
+# functions so simple that should never be called
+lt () {
+  local {num,int,dec}{1,2} max{int,dec}
+  formatnums "$1" "$2"
+  if [[ $num1 < "$num2" ]]; then REPLY=1; return 0
+  else REPLY=0; return 1
+  fi
+}
+
+le () {
+  local {num,int,dec}{1,2} max{int,dec}
+  formatnums "$1" "$2"
+  if ! [[ $num1 > "$num2" ]]; then REPLY=1; return 0
+  else REPLY=0; return 1
+  fi
+}
+
+gt () {
+  local {num,int,dec}{1,2} max{int,dec}
+  formatnums "$1" "$2"
+  if [[ $num1 > "$num2" ]]; then REPLY=1; return 0
+  else REPLY=0; return 1
+  fi
+}
+
+ge () {
+  local {num,int,dec}{1,2} max{int,dec}
+  formatnums "$1" "$2"
+  if ! [[ $num1 < "$num2" ]]; then REPLY=1; return 0
+  else REPLY=0; return 1
+  fi
+}
+
+eq () {
+  local {num,int,dec}{1,2} max{int,dec}
+  formatnums "$1" "$2"
+  if [[ $num1 = "$num2" ]]; then REPLY=1; return 0
+  else REPLY=0; return 1
+  fi
+}
+
 _sub () {
   # pass two integers to __sub, and $1 will be $2
   local {num,int,dec}{1,2} max{int,dec}
-  if [[ $1 =~ (.*)\.(.*) ]]; then
-    int1=${BASH_REMATCH[1]} dec1=${BASH_REMATCH[2]}
-  else
-    int1=$1 dec1=
-  fi
-  if [[ $2 =~ (.*)\.(.*) ]]; then
-    int2=${BASH_REMATCH[1]} dec2=${BASH_REMATCH[2]}
-  else
-    int2=$2 dec2=
-  fi
-  maxint=$(( ${#int1} > ${#int2} ? ${#int1} : ${#int2} ))
-  maxdec=$(( ${#dec1} > ${#dec2} ? ${#dec1} : ${#dec2} ))
-
-  printf -v num1 "%*s%-*s" "$maxint" "$int1" "$maxdec" "$dec1"
-  printf -v num2 "%*s%-*s" "$maxint" "$int2" "$maxdec" "$dec2"
+  formatnums "$1" "$2"
   if [[ $num1 > "$num2" ]]; then
-    __sub "${num1// /0}" "${num2// /0}"
+    __sub "$num1" "$num2"
     _move_separator_left "$REPLY" "$maxdec"
   else
-    __sub "${num2// /0}" "${num1// /0}"
+    __sub "$num2" "$num1"
     _move_separator_left "$REPLY" "$maxdec"
     REPLY=-$REPLY
   fi
