@@ -5,15 +5,18 @@
 
 source ./lib
 
-num='(-?[0-9]+(\.[0-9]+)?)'
+num='([-+]?[0-9]+(\.[0-9]+)?)'
 
 math () {
+  local a b
+  clean "$2"; a=$REPLY
+  clean "$3"; b=$REPLY
   case $1 in
-    ^) exp "$2" "$3" ;;
-    +) add "$2" "$3" ;;
-    -) sub "$2" "$3" ;;
-    /) div "$2" "$3" ;;
-    *) mul "$2" "$3" ;;
+    ^) exp "$a" "$b" ;;
+    +) add "$a" "$b" ;;
+    -) sub "$a" "$b" ;;
+    /) div "$a" "$b" ;;
+    *) mul "$a" "$b" ;;
   esac
 }
 

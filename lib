@@ -281,7 +281,7 @@ clean () {
 lt () {
   local {num,int,dec}{1,2} max{int,dec}
   formatnums "$1" "$2"
-  if [[ $num1 < "$num2" ]]; then REPLY=1; return 0
+  if [[ $num1 < $num2 ]]; then REPLY=1; return 0
   else REPLY=0; return 1
   fi
 }
@@ -289,7 +289,7 @@ lt () {
 le () {
   local {num,int,dec}{1,2} max{int,dec}
   formatnums "$1" "$2"
-  if ! [[ $num1 > "$num2" ]]; then REPLY=1; return 0
+  if ! [[ $num1 > $num2 ]]; then REPLY=1; return 0
   else REPLY=0; return 1
   fi
 }
@@ -297,7 +297,7 @@ le () {
 gt () {
   local {num,int,dec}{1,2} max{int,dec}
   formatnums "$1" "$2"
-  if [[ $num1 > "$num2" ]]; then REPLY=1; return 0
+  if [[ $num1 > $num2 ]]; then REPLY=1; return 0
   else REPLY=0; return 1
   fi
 }
@@ -305,7 +305,7 @@ gt () {
 ge () {
   local {num,int,dec}{1,2} max{int,dec}
   formatnums "$1" "$2"
-  if ! [[ $num1 < "$num2" ]]; then REPLY=1; return 0
+  if ! [[ $num1 < $num2 ]]; then REPLY=1; return 0
   else REPLY=0; return 1
   fi
 }
@@ -322,7 +322,7 @@ _sub () {
   # pass two integers to __sub, and $1 will be $2
   local {num,int,dec}{1,2} max{int,dec}
   formatnums "$1" "$2"
-  if [[ $num1 > "$num2" ]]; then
+  if [[ $num1 > $num2 ]]; then
     __sub "$num1" "$num2"
     _move_separator_left "$REPLY" "$maxdec"
   else
