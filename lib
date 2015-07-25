@@ -46,7 +46,7 @@ _move_separator_right () {
 __mul () {
   # $1 and $2 are positive integers
   local i j tmp result carry len1=${#1} len2=${#2}
-  if (( len1 + len2 < 19 )); then REPLY=$(( 10#$1 * 10#$2 ))
+  if (( len1 + len2 < 19 )); then (( REPLY = 10#$1 * 10#$2 ))
   else
     REPLY=0
     for (( i = len1 - 1; i >= 0 ; i-- )); do
@@ -77,9 +77,9 @@ _mul () {
 mul () {
   local num1=${1#-} num2=${2#-} sign1=${1%%[!-]*} sign2=${2%%[!-]*}
 
-  if [[ $num1 = 0 || $num2 = 0 ]]; then REPLY=0; return
-  elif [[ $num1 = 1 ]]; then REPLY=$num2
-  elif [[ $num2 = 1 ]]; then REPLY=$num1
+  if [[ $num1 == 0 || $num2 == 0 ]]; then REPLY=0; return
+  elif [[ $num1 == 1 ]]; then REPLY=$num2
+  elif [[ $num2 == 1 ]]; then REPLY=$num1
   elif [[ $num1 =~ ^1(0+)$ ]]; then _move_separator_right "$num2" "${#BASH_REMATCH[1]}"
   elif [[ $num2 =~ ^1(0+)$ ]]; then _move_separator_right "$num1" "${#BASH_REMATCH[1]}"
   elif [[ $num1 =~ ^0.(0*1)$ ]]; then _move_separator_left "$num2" "${#BASH_REMATCH[1]}"
@@ -89,7 +89,7 @@ mul () {
 
   clean "$REPLY"
 
-  [[ $sign1$sign2 = - ]] && REPLY=-$REPLY
+  [[ $sign1$sign2 == - ]] && REPLY=-$REPLY
 }
 
 __add () {
@@ -103,7 +103,7 @@ __add () {
     num1=$1 num2=$2
   fi
 
-  if (( max < 19 )); then REPLY=$(( 10#$1 + 10#$2 ))
+  if (( max < 19 )); then (( REPLY = 10#$1 + 10#$2 ))
   else
     REPLY=
 
@@ -176,8 +176,8 @@ formatnums () {
   if [[ $2 =~ (.*)\.(.*) ]]; then int2=${BASH_REMATCH[1]} dec2=${BASH_REMATCH[2]}
   else int2=$2 dec2=
   fi
-  maxint=$(( ${#int1} > ${#int2} ? ${#int1} : ${#int2} ))
-  maxdec=$(( ${#dec1} > ${#dec2} ? ${#dec1} : ${#dec2} ))
+  (( maxint = ${#int1} > ${#int2} ? ${#int1} : ${#int2} ))
+  (( maxdec = ${#dec1} > ${#dec2} ? ${#dec1} : ${#dec2} ))
 
   printf -v num1 "%*s%-*s" "$maxint" "$int1" "$maxdec" "$dec1"
   printf -v num2 "%*s%-*s" "$maxint" "$int2" "$maxdec" "$dec2"
@@ -197,9 +197,9 @@ add () {
   elif [[ -z $sign1 && $sign2 ]]; then _sub "$num1" "$num2"; clean "$REPLY"; return
   fi
 
-  if [[ $num1 = 0 && $num2 = 0 ]]; then REPLY=0
-  elif [[ $num1 = 0 ]]; then REPLY=$2
-  elif [[ $num2 = 0 ]]; then REPLY=$1
+  if [[ $num1 == 0 && $num2 == 0 ]]; then REPLY=0
+  elif [[ $num1 == 0 ]]; then REPLY=$2
+  elif [[ $num2 == 0 ]]; then REPLY=$1
   else _add "$num1" "$num2"; clean "$sign1$REPLY"
   fi
 }
@@ -210,10 +210,10 @@ sub () {
   elif [[ -z $sign1 && $sign2 ]]; then _add "$num1" "$num2"; clean "$REPLY"; return
   fi
 
-  if [[ $num1 = 0 && $num2 = 0 ]]; then REPLY=0
-  elif [[ $num1 = "$num2" ]]; then REPLY=0
-  elif [[ $num1 = 0 ]]; then [[ $sign2 ]] && REPLY=$num2 || REPLY=-$2
-  elif [[ $num2 = 0 ]]; then [[ $sign1 ]] && REPLY=$num1 || REPLY=-$1
+  if [[ $num1 == 0 && $num2 == 0 ]]; then REPLY=0
+  elif [[ $num1 == "$num2" ]]; then REPLY=0
+  elif [[ $num1 == 0 ]]; then [[ $sign2 ]] && REPLY=$num2 || REPLY=-$2
+  elif [[ $num2 == 0 ]]; then [[ $sign1 ]] && REPLY=$num1 || REPLY=-$1
   else _sub "$num1" "$num2"
     clean "$REPLY"
     if [[ $sign1 && ${REPLY:0:1} != - ]]; then
@@ -224,9 +224,9 @@ sub () {
 
 _exp () {
   # exp by squaring
-  if [[ $2 = 0 ]]; then REPLY=1
-  elif [[ $2 = 1 ]]; then REPLY=$1
-  elif [[ $2 = *[02468] ]]; then
+  if [[ $2 == 0 ]]; then REPLY=1
+  elif [[ $2 == 1 ]]; then REPLY=$1
+  elif [[ $2 == *[02468] ]]; then
   # mul instead of _mul is not much longer and helps a lot in simple cases
   # with lots of digits
     mul "$1" "$1"; tmp=$REPLY
@@ -244,37 +244,37 @@ _exp () {
 exp () {
   local base=${1#-} sign1=${1%%[!-]*} exp=${2#-} sign2=${2%%[!-]*} tmp
 
-  if [[ $exp = *.* ]]; then REPLY=error; return 1
-  elif [[ $exp = 0 ]]; then REPLY=1; return
-  elif [[ $base = 0 ]]; then
-    if [[ $exp = -* ]]; then REPLY=NaN
+  if [[ $exp == *.* ]]; then REPLY=error; return 1
+  elif [[ $exp == 0 ]]; then REPLY=1; return
+  elif [[ $base == 0 ]]; then
+    if [[ $exp == -* ]]; then REPLY=NaN
     else REPLY=0
     fi
     return 1
   elif [[ $sign2 ]]; then div 1 "$base"; _exp "$REPLY" "$exp"
   else _exp "$base" "$2"
   fi
-  [[ $exp = *[13579] && $sign1 ]] && REPLY=-$REPLY
+  [[ $exp == *[13579] && $sign1 ]] && REPLY=-$REPLY
 
   clean "$REPLY"
 }
 
 clean () {
   local num=${1#[+-]} sign=${1%%[!+-]*}
-  if [[ $num = *[!0-9.]* ]]; then
+  if [[ $num == *[!0-9.]* ]]; then
     REPLY=NaN; return 1
   elif [[ $num =~ (.*)\.(.*) ]]; then
-    if [[ $num = *.*[!0]* ]]; then
+    if [[ $num == *.*[!0]* ]]; then
       [[ $num =~ (.*)\.(.*[^0]) ]]
       REPLY=${BASH_REMATCH[1]##+(0)}.${BASH_REMATCH[2]}
     else
       REPLY=${BASH_REMATCH[1]##+(0)}
     fi
-    [[ $REPLY = .* ]] && REPLY=0$REPLY
+    [[ $REPLY == .* ]] && REPLY=0$REPLY
   else
     REPLY=${num##+(0)} REPLY=${REPLY:-0}
   fi
-  if [[ $sign = - ]]; then REPLY=-$REPLY; fi
+  if [[ $sign == - ]]; then REPLY=-$REPLY; fi
 }
 
 # functions so simple that should never be called
@@ -313,7 +313,7 @@ ge () {
 eq () {
   local {num,int,dec}{1,2} max{int,dec}
   formatnums "$1" "$2"
-  if [[ $num1 = "$num2" ]]; then REPLY=1; return 0
+  if [[ $num1 == "$num2" ]]; then REPLY=1; return 0
   else REPLY=0; return 1
   fi
 }
@@ -337,16 +337,16 @@ __sub () {
   # and now have same length
 
   local i len=${#1}
-  if (( len < 19 )); then REPLY=$(( 10#$1 - 10#$2 )); return; fi
+  if (( len < 19 )); then (( REPLY = 10#$1 - 10#$2 )); return; fi
   REPLY=
   for (( i = 0; i < len; i++ )); do
     REPLY+=$((9 - ${2:i:1})) # 10 complement
   done
-  if [[ $1 = *[0-8] ]]; then __add "${1::(-1)}$((${1:(-1)}+1))" "$REPLY"
-  elif [[ $REPLY = *[0-8] ]]; then __add "$1" "${REPLY::(-1)}$((${REPLY:(-1)}+1))"
+  if [[ $1 == *[0-8] ]]; then __add "${1::(-1)}$((${1:(-1)}+1))" "$REPLY"
+  elif [[ $REPLY == *[0-8] ]]; then __add "$1" "${REPLY::(-1)}$((${REPLY:(-1)}+1))"
   else
     __add "$1" "$REPLY"
-    if [[ $REPLY = [0-8] ]]; then REPLY=${REPLY::(-1)}$((${REPLY:(-1)}+1))
+    if [[ $REPLY == [0-8] ]]; then REPLY=${REPLY::(-1)}$((${REPLY:(-1)}+1))
     else __add "$REPLY" 1
     fi
   fi
@@ -358,10 +358,10 @@ div () {
 
   [[ $sign1 && $sign2 ]] && sign1= sign2=
 
-  if [[ $num1 = "$num2" ]]; then REPLY=1
-  elif [[ $num1 = 0 ]]; then REPLY=0; return
-  elif [[ $num2 = 0 ]]; then REPLY=NaN; return
-  elif [[ $num2 = 1 ]]; then REPLY=$num1
+  if [[ $num1 == "$num2" ]]; then REPLY=1
+  elif [[ $num1 == 0 ]]; then REPLY=0; return
+  elif [[ $num2 == 0 ]]; then REPLY=NaN; return
+  elif [[ $num2 == 1 ]]; then REPLY=$num1
   elif [[ $num2 =~ ^1(0+)$ ]]; then _move_separator_left "$num1" "${#BASH_REMATCH[1]}"
   elif [[ $num2 =~ ^0.(0*1)$ ]]; then _move_separator_right "$num1" "${#BASH_REMATCH[1]}"
   else _div "$num1" "$num2"
